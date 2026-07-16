@@ -26,7 +26,7 @@ class Tracer:
         
         self.cpu_mem_collector = CPUMemCollector()
         self.gpu_collector = GPUCollector()
-        self.sampler_bridge = SamplerBridge()
+        self.sampler_bridge = SamplerBridge(sample_interval_ms=self.sample_interval_ms)
         
         # Determine hardware info
         cpu_count = os.cpu_count() or 1
@@ -142,11 +142,23 @@ class StageContext(ContextDecorator):
                 # Read from socket
                 samples = self.tracer.sampler_bridge.read_samples()
                 for sample in samples:
-                    self.metrics.append(MetricSchema(
-                        timestamp=datetime.utcnow(),
-                        key=sample.get("key", ""),
-                        value=float(sample.get("value", 0.0))
-                    ))
+                    ts_str = sample.get("timestamp")
+                    ts = datetime.utcnow()
+                    if ts_str:
+                        try:
+                            ts = datetime.strptime(ts_str, "%Y-%m-%dT%H:%M:%S.%fZ")
+                        except Exception:
+                            try:
+                                ts = datetime.strptime(ts_str.split(".")[0], "%Y-%m-%dT%H:%M:%S")
+                            except Exception:
+                                pass
+                    for key in ["cpu_percent", "ram_used_mb", "gpu_util_percent", "gpu_mem_used_mb"]:
+                        if key in sample:
+                            self.metrics.append(MetricSchema(
+                                timestamp=ts,
+                                key=key,
+                                value=float(sample[key])
+                            ))
             else:
                 # Fallback to pure Python sampling
                 cpu = self.tracer.cpu_mem_collector.get_cpu_percent()

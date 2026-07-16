@@ -2,9 +2,11 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Cpu, Database, Layers, ShieldAlert, Sparkles, Clock } from "lucide-react";
+import { ArrowLeft, Cpu, Database, Layers, ShieldAlert, Sparkles, Clock, ChevronDown, ChevronUp, Loader2, Zap } from "lucide-react";
 import Timeline from "@/components/Timeline";
 import MemoryChart from "@/components/MemoryChart";
+import ThroughputChart from "@/components/ThroughputChart";
+import Flamegraph from "@/components/Flamegraph";
 import { Run } from "@/types/run";
 
 interface PageProps {
@@ -16,6 +18,12 @@ export default function RunDetailPage({ params }: PageProps) {
   const [run, setRun] = useState<Run | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Expanded trace state
+  const [expandedStages, setExpandedStages] = useState<Record<string, boolean>>({});
+  const [stageTraces, setStageTraces] = useState<Record<string, string | null>>({});
+  const [traceLoading, setTraceLoading] = useState<Record<string, boolean>>({});
+  const [traceErrors, setTraceErrors] = useState<Record<string, string | null>>({});
 
   const fetchRunDetails = async () => {
     try {
@@ -49,6 +57,27 @@ export default function RunDetailPage({ params }: PageProps) {
       eventSource.close();
     };
   }, [runId]);
+
+  const toggleStageExpand = async (stageId: string, hasTrace: boolean) => {
+    if (!hasTrace) return;
+    const isNowExpanded = !expandedStages[stageId];
+    setExpandedStages((prev) => ({ ...prev, [stageId]: isNowExpanded }));
+
+    if (isNowExpanded && !stageTraces[stageId]) {
+      setTraceLoading((prev) => ({ ...prev, [stageId]: true }));
+      setTraceErrors((prev) => ({ ...prev, [stageId]: null }));
+      try {
+        const res = await fetch(`/api/stages/${stageId}/trace`);
+        if (!res.ok) throw new Error("Failed to load trace data");
+        const data = await res.json();
+        setStageTraces((prev) => ({ ...prev, [stageId]: data.trace }));
+      } catch (err: any) {
+        setTraceErrors((prev) => ({ ...prev, [stageId]: err.message || "Failed to load trace" }));
+      } finally {
+        setTraceLoading((prev) => ({ ...prev, [stageId]: false }));
+      }
+    }
+  };
 
   if (loading) {
     return (
@@ -150,6 +179,90 @@ export default function RunDetailPage({ params }: PageProps) {
         <Timeline stages={run.stages} />
         
         <MemoryChart stages={run.stages} />
+
+        <ThroughputChart stages={run.stages} />
+      </div>
+
+      {/* Stage Breakdown & Flamegraph Accordion */}
+      <div className="mt-8 space-y-4">
+        <h3 className="text-lg font-semibold text-slate-200">Stages Profile Details</h3>
+        
+        <div className="space-y-4">
+          {run.stages.map((stage) => {
+            const isExpanded = expandedStages[stage.id] || false;
+            const trace = stageTraces[stage.id] || null;
+            const isLoading = traceLoading[stage.id] || false;
+            const traceError = traceErrors[stage.id] || null;
+
+            return (
+              <div key={stage.id} className="glass-card overflow-hidden">
+                {/* Header panel */}
+                <div 
+                  className={`p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 cursor-pointer transition-colors ${
+                    isExpanded ? "bg-slate-850/50 border-b border-slate-800/60" : "hover:bg-slate-850/30"
+                  }`}
+                  onClick={() => toggleStageExpand(stage.id, !!stage.has_trace)}
+                >
+                  <div>
+                    <h4 className="text-md font-bold text-slate-200">{stage.name}</h4>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Duration: <span className="text-sky-400 font-semibold">{stage.duration_ms.toFixed(0)}ms</span> &bull; 
+                      RAM Peak: <span className="text-indigo-400 font-semibold">{stage.ram_used_mb.toFixed(0)} MB</span>
+                      {stage.gpu_mem_used_mb > 0 && (
+                        <> &bull; GPU Peak: <span className="text-amber-400 font-semibold">{stage.gpu_mem_used_mb.toFixed(0)} MB</span></>
+                      )}
+                    </p>
+                  </div>
+                  
+                  <div className="flex items-center gap-3">
+                    {stage.has_trace ? (
+                      <button 
+                        className={`glow-btn text-xs font-semibold px-4 py-2 flex items-center gap-1.5 ${
+                          isExpanded ? "bg-indigo-600 border-indigo-500" : ""
+                        }`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleStageExpand(stage.id, true);
+                        }}
+                      >
+                        <Zap className="h-3.5 w-3.5" />
+                        {isExpanded ? "Close Flamegraph" : "Trace Flamegraph"}
+                        {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                      </button>
+                    ) : (
+                      <span className="text-xs text-slate-500 border border-slate-800 rounded-lg px-3 py-2 font-medium animate-pulse">
+                        No Trace Recorded
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Expanded Flamegraph Panel */}
+                {isExpanded && (
+                  <div className="p-5 bg-slate-950/40 border-t border-slate-900">
+                    {isLoading && (
+                      <div className="flex items-center justify-center py-10 gap-3 text-sm text-slate-400">
+                        <Loader2 className="animate-spin h-5 w-5 text-indigo-400" />
+                        Loading execution trace...
+                      </div>
+                    )}
+                    
+                    {traceError && (
+                      <div className="p-4 bg-rose-500/10 border border-rose-500/30 text-rose-300 rounded-lg text-sm flex items-center gap-2">
+                        <ShieldAlert className="h-5 w-5 text-rose-400 shrink-0" />
+                        <span>{traceError}</span>
+                      </div>
+                    )}
+
+                    {!isLoading && !traceError && (
+                      <Flamegraph traceJsonStr={trace} />
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

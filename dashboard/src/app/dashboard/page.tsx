@@ -2,7 +2,9 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { Activity, Cpu, Database, Layers, ArrowRight } from "lucide-react";
+import { Activity, Cpu, Database, Layers, ArrowRight, ShieldAlert } from "lucide-react";
+import RunCompareTable from "@/components/RunCompareTable";
+import { Run } from "@/types/run";
 
 interface RunListEntry {
   id: string;
@@ -25,6 +27,13 @@ export default function DashboardPage() {
   const [runs, setRuns] = useState<RunListEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Compare states
+  const [selectedRunIds, setSelectedRunIds] = useState<string[]>([]);
+  const [comparing, setComparing] = useState(false);
+  const [compareData, setCompareData] = useState<{ runA: Run; runB: Run } | null>(null);
+  const [compareLoading, setCompareLoading] = useState(false);
+  const [compareError, setCompareError] = useState<string | null>(null);
 
   const fetchRuns = async () => {
     try {
@@ -84,6 +93,46 @@ export default function DashboardPage() {
     };
   }, []);
 
+  const toggleSelectRun = (id: string) => {
+    setSelectedRunIds((prev) => {
+      if (prev.includes(id)) {
+        return prev.filter((item) => item !== id);
+      } else {
+        if (prev.length >= 2) {
+          // Replace the older selected run to maintain max 2 items
+          return [prev[1], id];
+        }
+        return [...prev, id];
+      }
+    });
+  };
+
+  const handleStartCompare = async () => {
+    if (selectedRunIds.length !== 2) return;
+    setCompareLoading(true);
+    setCompareError(null);
+    try {
+      const [idA, idB] = selectedRunIds;
+      // Fetch both runs details in parallel
+      const [resA, resB] = await Promise.all([
+        fetch(`/api/runs/${idA}`),
+        fetch(`/api/runs/${idB}`),
+      ]);
+
+      if (!resA.ok || !resB.ok) {
+        throw new Error("Could not retrieve details. One of the selected runs might have been deleted.");
+      }
+
+      const [runA, runB] = await Promise.all([resA.json(), resB.json()]);
+      setCompareData({ runA, runB });
+      setComparing(true);
+    } catch (err: any) {
+      setCompareError(err.message || "Failed to compare runs");
+    } finally {
+      setCompareLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[500px]">
@@ -93,7 +142,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
+    <div className="max-w-7xl mx-auto px-4 py-8 relative pb-24">
       {/* Header section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div>
@@ -118,6 +167,13 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {compareError && (
+        <div className="mb-6 p-4 bg-rose-500/10 border border-rose-500/30 text-rose-300 rounded-lg text-sm flex items-center gap-2">
+          <ShieldAlert className="h-5 w-5 text-rose-400 shrink-0" />
+          <span>{compareError}</span>
+        </div>
+      )}
+
       {runs.length === 0 ? (
         <div className="text-center py-20 glass-card">
           <Activity className="h-16 w-16 text-slate-600 mx-auto mb-4" />
@@ -130,13 +186,28 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {runs.map((run) => {
             const totalDuration = run.stages.reduce((acc, s) => acc + s.duration_ms, 0);
+            const isSelected = selectedRunIds.includes(run.id);
+
             return (
-              <div key={run.id} className="glass-card flex flex-col justify-between p-6">
+              <div
+                key={run.id}
+                className={`glass-card flex flex-col justify-between p-6 transition-all duration-200 ${
+                  isSelected ? "border-indigo-500 shadow-[0_0_15px_rgba(99,102,241,0.25)] bg-slate-900/90" : ""
+                }`}
+              >
                 <div>
-                  <div className="flex items-start justify-between gap-2 mb-3">
-                    <h2 className="text-lg font-bold text-slate-200 truncate group-hover:text-sky-400">
-                      {run.name}
-                    </h2>
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div className="flex items-center gap-3 truncate">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleSelectRun(run.id)}
+                        className="h-5 w-5 accent-indigo-500 rounded border-slate-700 cursor-pointer shrink-0"
+                      />
+                      <h2 className="text-lg font-bold text-slate-200 truncate group-hover:text-sky-400">
+                        {run.name}
+                      </h2>
+                    </div>
                     <span className="text-[10px] text-indigo-400 bg-indigo-500/10 px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider shrink-0">
                       Active
                     </span>
@@ -182,6 +253,42 @@ export default function DashboardPage() {
             );
           })}
         </div>
+      )}
+
+      {/* Floating comparison action bar */}
+      {selectedRunIds.length === 2 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-slate-900/90 border border-indigo-500/30 backdrop-blur-md px-6 py-3.5 rounded-full shadow-2xl flex items-center gap-6 animate-in slide-in-from-bottom-5">
+          <span className="text-sm font-semibold text-slate-200">
+            2 Runs Selected for Comparison
+          </span>
+          <div className="flex gap-2">
+            <button
+              onClick={handleStartCompare}
+              disabled={compareLoading}
+              className="glow-btn text-xs font-semibold px-4 py-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {compareLoading ? "Fetching runs..." : "Compare Selected"}
+            </button>
+            <button
+              onClick={() => setSelectedRunIds([])}
+              className="px-3 py-2 text-xs font-semibold text-slate-400 hover:text-slate-200 border border-slate-800 rounded-lg hover:bg-slate-850/50 transition-all"
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Comparison Modal Overlay */}
+      {comparing && compareData && (
+        <RunCompareTable
+          runA={compareData.runA}
+          runB={compareData.runB}
+          onClose={() => {
+            setComparing(false);
+            setCompareData(null);
+          }}
+        />
       )}
     </div>
   );

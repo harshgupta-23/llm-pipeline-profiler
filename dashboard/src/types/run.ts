@@ -16,6 +16,7 @@ export interface Stage {
   gpu_mem_used_mb: number;
   metrics: Metric[];
   trace_ref?: string | null;
+  has_trace?: boolean;
 }
 
 export interface Run {

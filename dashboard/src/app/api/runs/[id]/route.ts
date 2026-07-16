@@ -10,10 +10,25 @@ export async function GET(
     
     const run = await db.run.findUnique({
       where: { id },
-      include: {
+      select: {
+        id: true,
+        name: true,
+        created_at: true,
+        model_name: true,
+        hardware_info: true,
         stages: {
           orderBy: { start_time: "asc" },
-          include: {
+          select: {
+            id: true,
+            run_id: true,
+            name: true,
+            start_time: true,
+            end_time: true,
+            duration_ms: true,
+            cpu_percent: true,
+            ram_used_mb: true,
+            gpu_util_percent: true,
+            gpu_mem_used_mb: true,
             metrics: {
               orderBy: { timestamp: "asc" },
             },
@@ -26,7 +41,22 @@ export async function GET(
       return NextResponse.json({ error: "Run not found" }, { status: 404 });
     }
 
-    return NextResponse.json(run);
+    // Find which stages actually have trace data to set the has_trace flag
+    const stagesWithTrace = await db.stage.findMany({
+      where: { run_id: id, NOT: { trace_ref: null } },
+      select: { id: true },
+    });
+    const traceIdsSet = new Set(stagesWithTrace.map((s) => s.id));
+
+    const runWithTraceFlag = {
+      ...run,
+      stages: run.stages.map((stage) => ({
+        ...stage,
+        has_trace: traceIdsSet.has(stage.id),
+      })),
+    };
+
+    return NextResponse.json(runWithTraceFlag);
   } catch (error: any) {
     const { id } = await params;
     console.error(`Error in GET /api/runs/${id}:`, error);
