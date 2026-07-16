@@ -42,7 +42,7 @@ class Exporter:
                 method='POST'
             )
             try:
-                with urllib.request.urlopen(req, timeout=5) as response:
+                with urllib.request.urlopen(req, timeout=60) as response:
                     response.read()
             except urllib.error.URLError as e:
                 print(f"[llm-profiler] [WARNING] Failed to post run to dashboard at {url} (network error): {e}", file=sys.stderr)
