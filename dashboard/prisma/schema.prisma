@@ -1,0 +1,45 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Run {
+  id            String   @id @default(uuid())
+  name          String
+  created_at    DateTime @default(now())
+  model_name    String?
+  hardware_info Json?    // Stores GPU type, VRAM, and CPU count
+  stages        Stage[]
+}
+
+model Stage {
+  id               String   @id @default(uuid())
+  run_id           String
+  run              Run      @relation(fields: [run_id], references: [id], onDelete: Cascade)
+  name             String
+  start_time       DateTime
+  end_time         DateTime
+  duration_ms      Float
+  cpu_percent      Float
+  ram_used_mb      Float
+  gpu_util_percent Float
+  gpu_mem_used_mb  Float
+  trace_ref        String?
+  metrics          Metric[]
+
+  @@index([run_id])
+}
+
+model Metric {
+  id        String   @id @default(uuid())
+  stage_id  String
+  stage     Stage    @relation(fields: [stage_id], references: [id], onDelete: Cascade)
+  timestamp DateTime
+  key       String
+  value     Float
+
+  @@index([stage_id, timestamp])
+}
