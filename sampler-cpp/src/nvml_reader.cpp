@@ -96,10 +96,6 @@ void NVMLReader::update() {
 #endif
 }
 
-bool NVMLReader::is_enabled() const {
-    return enabled_;
-}
-
 double NVMLReader::get_gpu_util_percent() const {
     return gpu_util_percent_;
 }

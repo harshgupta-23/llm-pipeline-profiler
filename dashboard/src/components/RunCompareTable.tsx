@@ -293,7 +293,7 @@ export default function RunCompareTable({ runA, runB, onClose }: RunCompareTable
                         return (
                           <React.Fragment key={name}>
                             <tr className="hover:bg-slate-850/40 transition-colors">
-                              <td className="p-4 font-semibold text-slate-200">{name}</td>
+                              <td className="p-4 font-semibold text-slate-200 break-words min-w-[120px] max-w-[200px]">{name}</td>
                               <td className="p-4 text-center text-slate-400 whitespace-nowrap">
                                 {stageA ? (
                                   <div>
@@ -411,7 +411,7 @@ export default function RunCompareTable({ runA, runB, onClose }: RunCompareTable
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart
                       data={combinedThroughputData}
-                      margin={{ top: 10, right: 10, left: -15, bottom: 0 }}
+                      margin={{ top: 10, right: 10, left: -15, bottom: 20 }}
                     >
                       <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" opacity={0.5} />
                       <XAxis

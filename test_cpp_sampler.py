@@ -1,3 +1,9 @@
+"""
+test_cpp_sampler.py
+Validates the direct imports and thread lifecycles of the compiled C++ extension 'llm_profiler_sampler'.
+Also tests the Python Tracer class's graceful fallback behavior to Python-based sampling
+when C++ Unix Domain Sockets are unsupported (e.g. locally on Windows by design).
+"""
 import sys
 import os
 import time

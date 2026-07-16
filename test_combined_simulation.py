@@ -1,3 +1,9 @@
+"""
+test_combined_simulation.py
+Mock simulator script that runs without any heavy libraries or hardware dependencies.
+Mocks the PyTorch profiler's stop call to return a tiny 7-event sample trace.
+Simulates stages, memory metrics, CPU, and token throughput (tps) metrics, exporting them to the dashboard.
+"""
 from llm_profiler import Tracer
 from llm_profiler.collectors.torch_profiler import TorchProfilerCollector
 import time
@@ -26,7 +32,7 @@ print("Initializing tracer with mock trace injector...")
 tracer = Tracer(
     run_name="simulated-all-visuals-run",
     model_name="gpt2-simulated",
-    dashboard_url="https://stimuli-detention-video.ngrok-free.dev"
+    dashboard_url="http://localhost:3000"
 )
 
 # Run a stage with profile_torch=True to trigger the mocked flamegraph trace

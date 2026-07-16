@@ -78,7 +78,7 @@ export default function ThroughputChart({ stages }: ThroughputChartProps) {
         <ResponsiveContainer width="100%" height="100%">
           <LineChart
             data={chartData}
-            margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
+            margin={{ top: 10, right: 10, left: -10, bottom: 20 }}
           >
             <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" opacity={0.5} />
             <XAxis

@@ -1,3 +1,9 @@
+"""
+test_throughput.py
+Real LLM pipeline benchmark script using HuggingFace 'transformers' (distilgpt2).
+Tests actual model loading, tokenization, autoregressive token generation, and decoding stages.
+Calculates and logs tokens-per-second (tps) metrics and monitors active CPU/RAM/GPU usage.
+"""
 from llm_profiler import Tracer
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import torch

@@ -55,7 +55,10 @@ export default function Timeline({ stages }: TimelineProps) {
               </div>
 
               {/* Timeline bar container */}
-              <div className="relative h-9 bg-slate-950/40 rounded-lg overflow-hidden border border-slate-900">
+              <div 
+                className="relative h-9 bg-slate-950/40 rounded-lg overflow-hidden border border-slate-900 cursor-help"
+                title={`${stage.name}: ${stage.duration_ms.toFixed(1)}ms`}
+              >
                 <div
                   className={`absolute top-1 bottom-1 rounded-md bg-gradient-to-r ${getStageColor(
                     stage.name
@@ -65,9 +68,11 @@ export default function Timeline({ stages }: TimelineProps) {
                     width: `${Math.max(1.5, widthPercent)}%`,
                   }}
                 >
-                  <span className="text-[11px] font-bold text-white truncate drop-shadow-md">
-                    {stage.duration_ms.toFixed(0)}ms
-                  </span>
+                  {widthPercent >= 8 && (
+                    <span className="text-[11px] font-bold text-white truncate drop-shadow-md">
+                      {stage.duration_ms.toFixed(0)}ms
+                    </span>
+                  )}
                 </div>
 
                 {/* Hover info tooltip */}

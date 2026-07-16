@@ -9,10 +9,12 @@ interface FlamegraphProps {
 }
 
 export default function Flamegraph({ traceJsonStr }: FlamegraphProps) {
-  const threads = useMemo(() => {
-    if (!traceJsonStr) return [];
+  const parseResult = useMemo(() => {
+    if (!traceJsonStr) return { threads: [], truncated: false, originalCount: 0, limit: 15000 };
     return parseChromeTrace(traceJsonStr);
   }, [traceJsonStr]);
+
+  const { threads, truncated, originalCount, limit } = parseResult;
 
   if (!traceJsonStr) {
     return (
@@ -58,6 +60,15 @@ export default function Flamegraph({ traceJsonStr }: FlamegraphProps) {
 
   return (
     <div className="space-y-8">
+      {truncated && (
+        <div className="p-4 bg-amber-500/10 border border-amber-500/30 text-amber-300 rounded-xl text-xs flex items-center gap-2">
+          <AlertCircle className="h-4 w-4 text-amber-400 shrink-0 animate-pulse" />
+          <span>
+            Trace is very large ({originalCount.toLocaleString()} events). Only the top {limit.toLocaleString()} longest duration events have been rendered to maintain browser performance.
+          </span>
+        </div>
+      )}
+
       {threads.map((thread) => {
         const maxDepth = Math.max(...thread.nodes.map((n) => n.depth), 0);
         const laneHeight = (maxDepth + 1) * 26 + 20; // 26px per row + padding
@@ -76,32 +87,37 @@ export default function Flamegraph({ traceJsonStr }: FlamegraphProps) {
                 className="relative min-w-[800px]" 
                 style={{ height: `${laneHeight}px` }}
               >
-                {thread.nodes.map((node, index) => {
-                  const left = ((node.start - thread.minTs) / timeSpan) * 100;
-                  const width = (node.duration / timeSpan) * 100;
-                  const top = node.depth * 26 + 10;
-                  const color = getNodeColor(node);
+                {thread.nodes
+                  .filter((node) => {
+                    const width = (node.duration / timeSpan) * 100;
+                    return width >= 0.02; // Filter out elements less than 0.02% wide (which is < 0.2px on 1000px screen)
+                  })
+                  .map((node, index) => {
+                    const left = ((node.start - thread.minTs) / timeSpan) * 100;
+                    const width = (node.duration / timeSpan) * 100;
+                    const top = node.depth * 26 + 10;
+                    const color = getNodeColor(node);
 
-                  return (
-                    <div
-                      key={index}
-                      className="absolute h-[22px] rounded text-[10px] font-medium text-white flex items-center px-1.5 cursor-help transition-all duration-150 hover:brightness-125 border border-black/10 select-none overflow-hidden text-ellipsis whitespace-nowrap"
-                      style={{
-                        left: `${left}%`,
-                        width: `${Math.max(0.4, width)}%`,
-                        top: `${top}px`,
-                        backgroundColor: color,
-                      }}
-                      title={`${node.name}\nDuration: ${(node.duration / 1000).toFixed(3)} ms\nCategory: ${node.cat}`}
-                    >
-                      {width > 3 && (
-                        <span className="truncate drop-shadow-md">
-                          {node.name.replace("aten::", "")}
-                        </span>
-                      )}
-                    </div>
-                  );
-                })}
+                    return (
+                      <div
+                        key={index}
+                        className="absolute h-[22px] rounded text-[10px] font-medium text-white flex items-center px-1.5 cursor-help transition-all duration-150 hover:brightness-125 border border-black/10 select-none overflow-hidden text-ellipsis whitespace-nowrap"
+                        style={{
+                          left: `${left}%`,
+                          width: `${Math.max(0.4, width)}%`,
+                          top: `${top}px`,
+                          backgroundColor: color,
+                        }}
+                        title={`${node.name}\nDuration: ${(node.duration / 1000).toFixed(3)} ms\nCategory: ${node.cat}`}
+                      >
+                        {width > 3 && (
+                          <span className="truncate drop-shadow-md">
+                            {node.name.replace("aten::", "")}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
               </div>
             </div>
 

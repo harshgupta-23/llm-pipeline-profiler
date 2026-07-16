@@ -49,5 +49,5 @@ with tracer.stage("generate"):
     tracer.log_metric("tokens_generated", 50.0)
 
 # Export results to run.json
-tracer._export_current_run()
+tracer.export()
 ```

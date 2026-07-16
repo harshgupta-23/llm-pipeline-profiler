@@ -6,7 +6,6 @@ public:
     NVMLReader();
     ~NVMLReader();
     void update();
-    bool is_enabled() const;
     double get_gpu_util_percent() const;
     double get_gpu_mem_used_mb() const;
 

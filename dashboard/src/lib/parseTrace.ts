@@ -15,7 +15,14 @@ export interface FlamegraphThread {
   maxTs: number;
 }
 
-export function parseChromeTrace(traceJsonStr: string): FlamegraphThread[] {
+export interface ParseTraceResult {
+  threads: FlamegraphThread[];
+  truncated: boolean;
+  originalCount: number;
+  limit: number;
+}
+
+export function parseChromeTrace(traceJsonStr: string, limit = 15000): ParseTraceResult {
   try {
     const trace = JSON.parse(traceJsonStr);
     const events = trace.traceEvents || [];
@@ -32,11 +39,23 @@ export function parseChromeTrace(traceJsonStr: string): FlamegraphThread[] {
       );
     });
 
-    if (validEvents.length === 0) return [];
+    const originalCount = validEvents.length;
+    if (originalCount === 0) {
+      return { threads: [], truncated: false, originalCount: 0, limit };
+    }
+
+    const truncated = originalCount > limit;
+    let eventsToProcess = validEvents;
+
+    if (truncated) {
+      // Sort by duration descending to keep the longest-duration events
+      const sortedByDuration = [...validEvents].sort((a: any, b: any) => b.dur - a.dur);
+      eventsToProcess = sortedByDuration.slice(0, limit);
+    }
 
     // 2. Group events by pid/tid track
     const groups: Record<string, { pid: number; tid: number; events: any[] }> = {};
-    validEvents.forEach((e: any) => {
+    eventsToProcess.forEach((e: any) => {
       const key = `${e.pid}-${e.tid}`;
       if (!groups[key]) {
         groups[key] = { pid: e.pid, tid: e.tid, events: [] };
@@ -109,13 +128,20 @@ export function parseChromeTrace(traceJsonStr: string): FlamegraphThread[] {
     });
 
     // Sort threads so GPU tracks come first
-    return threads.sort((a, b) => {
+    const sortedThreads = threads.sort((a, b) => {
       const aIsGpu = a.name.startsWith("GPU") ? 1 : 0;
       const bIsGpu = b.name.startsWith("GPU") ? 1 : 0;
       return bIsGpu - aIsGpu;
     });
+
+    return {
+      threads: sortedThreads,
+      truncated,
+      originalCount,
+      limit,
+    };
   } catch (err) {
     console.error("Error parsing chrome trace:", err);
-    return [];
+    return { threads: [], truncated: false, originalCount: 0, limit };
   }
 }

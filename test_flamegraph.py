@@ -1,3 +1,9 @@
+"""
+test_flamegraph.py
+Real PyTorch profiling test using torch.profiler with profile_torch=True.
+Runs matrix multiplication operations to generate and export actual op-level Chrome trace event JSONs.
+Used to verify that the Flamegraph component correctly parses and renders real PyTorch traces.
+"""
 from llm_profiler import Tracer
 import torch
 import time
@@ -10,7 +16,7 @@ print(f"Running PyTorch profiling test on device: {device}")
 tracer = Tracer(
     run_name="pytorch-trace-run",
     model_name="matmul-benchmark",
-    dashboard_url="https://stimuli-detention-video.ngrok-free.dev"
+    dashboard_url="http://localhost:3000"
 )
 
 # We enable profile_torch=True here to trigger the PyTorch profiler and record a trace
