@@ -3,7 +3,7 @@ import os
 import uuid
 import sys
 import threading
-from datetime import datetime
+from datetime import datetime, timezone
 from contextlib import ContextDecorator
 from typing import Optional, List, Dict, Any
 
@@ -24,7 +24,7 @@ class Tracer:
         self.profile_torch = profile_torch
         
         self.run_id = str(uuid.uuid4())
-        self.created_at = datetime.utcnow()
+        self.created_at = datetime.now().astimezone()
         
         self.cpu_mem_collector = CPUMemCollector()
         self.gpu_collector = GPUCollector()
@@ -124,7 +124,7 @@ class StageContext(ContextDecorator):
 
     def log_metric(self, key: str, value: float):
         self.metrics.append(MetricSchema(
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now().astimezone(),
             key=key,
             value=float(value)
         ))
@@ -141,7 +141,7 @@ class StageContext(ContextDecorator):
         except ImportError:
             pass
             
-        self.start_time = datetime.utcnow()
+        self.start_time = datetime.now().astimezone()
         self.start_perf = time.perf_counter()
         
         # Take start snapshots
@@ -175,20 +175,22 @@ class StageContext(ContextDecorator):
         interval = self.tracer.sample_interval_ms / 1000.0
         while self._sampling_active:
             loop_start = time.perf_counter()
-            timestamp = datetime.utcnow()
+            timestamp = datetime.now().astimezone()
             
             if self.use_sampler_cpp:
                 # Read from socket
                 samples = self.tracer.sampler_bridge.read_samples()
                 for sample in samples:
                     ts_str = sample.get("timestamp")
-                    ts = datetime.utcnow()
+                    ts = datetime.now().astimezone()
                     if ts_str:
                         try:
                             ts = datetime.strptime(ts_str, "%Y-%m-%dT%H:%M:%S.%fZ")
+                            ts = ts.replace(tzinfo=timezone.utc).astimezone()
                         except Exception:
                             try:
                                 ts = datetime.strptime(ts_str.split(".")[0], "%Y-%m-%dT%H:%M:%S")
+                                ts = ts.replace(tzinfo=timezone.utc).astimezone()
                             except Exception:
                                 pass
                     for key in ["cpu_percent", "ram_used_mb", "gpu_util_percent", "gpu_mem_used_mb"]:
@@ -238,7 +240,7 @@ class StageContext(ContextDecorator):
         except ImportError:
             pass
             
-        end_time = datetime.utcnow()
+        end_time = datetime.now().astimezone()
         end_perf = time.perf_counter()
         
         # Stop PyTorch profiler if active and get trace in background

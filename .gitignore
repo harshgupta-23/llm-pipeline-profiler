@@ -4,6 +4,7 @@
 .DS_Store
 Thumbs.db
 *.log
+*.tmp
 
 # Node.js / Next.js (dashboard)
 node_modules/

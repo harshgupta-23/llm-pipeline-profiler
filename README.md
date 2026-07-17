@@ -24,6 +24,8 @@ It was designed around a real constraint: **no local GPU.** All GPU-side profili
 
 Data flows in one direction only: instrumented code → local export or HTTP POST → dashboard API → PostgreSQL → UI. This was a deliberate design choice, since Kaggle kernels don't expose inbound ports — nothing can connect _into_ a running Kaggle session, so all traffic flows outward.
 
+All run and stage timestamps are captured using timezone-aware local datetimes, ensuring dates and times are stored and rendered correctly in the user's local timezone on the dashboard.
+
 ---
 
 ## Screenshots
