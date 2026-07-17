@@ -233,10 +233,21 @@ class StageContext(ContextDecorator):
         end_time = datetime.utcnow()
         end_perf = time.perf_counter()
         
-        # Stop PyTorch profiler if active and get trace
-        trace_ref = None
-        if self.torch_profiler:
-            trace_ref = self.torch_profiler.stop()
+        # Stop PyTorch profiler if active and get trace in background
+        if self.torch_profiler and self.torch_profiler._active and self.torch_profiler.profiler is None:
+            self.torch_profiler = None
+
+        profiler_to_serialize = None
+        trace_dir = None
+        if self.torch_profiler and self.torch_profiler.profiler:
+            try:
+                # Stop recording synchronously on the main thread (instantaneous)
+                profiler_to_serialize = self.torch_profiler.profiler
+                profiler_to_serialize.stop()
+                self.torch_profiler._active = False
+                trace_dir = self.torch_profiler.trace_dir
+            except Exception as e:
+                print(f"[llm-profiler] Error stopping torch profiler: {e}")
             self.torch_profiler = None
             
         duration_ms = (end_perf - self.start_perf) * 1000.0
@@ -272,11 +283,36 @@ class StageContext(ContextDecorator):
             gpu_util_percent=gpu_util_percent,
             gpu_mem_used_mb=gpu_mem_used_mb,
             metrics=self.metrics,
-            trace_ref=trace_ref
+            trace_ref=None
         )
         
         self.tracer.stages.append(stage)
         self.tracer._export_current_run()
-        
+
+        # Start the background serialization thread if a profiler was active
+        if profiler_to_serialize and trace_dir:
+            def serialize_trace(stage_object, tracer_object):
+                import tempfile
+                try:
+                    fd, path = tempfile.mkstemp(suffix=".json", dir=trace_dir)
+                    os.close(fd)
+                    profiler_to_serialize.export_chrome_trace(path)
+                    if os.path.exists(path):
+                        with open(path, "r", encoding="utf-8") as f:
+                            trace_content = f.read()
+                        try:
+                            os.remove(path)
+                        except Exception:
+                            pass
+                        # Update the stage with the serialized trace and re-export
+                        stage_object.trace_ref = trace_content
+                        tracer_object._export_current_run()
+                except Exception as e:
+                    print(f"[llm-profiler] Background trace export failed: {e}")
+
+            t = threading.Thread(target=serialize_trace, args=(stage, self.tracer))
+            t.daemon = True
+            t.start()
+            
         # Propagate exception if one occurred
         return False
