@@ -100,7 +100,12 @@ export default function RunDetailPage({ params }: PageProps) {
     );
   }
 
-  const totalDuration = run.stages.reduce((acc, s) => acc + s.duration_ms, 0);
+  const startTimes = run.stages.map((s) => new Date(s.start_time).getTime());
+  const endTimes = run.stages.map((s) => new Date(s.end_time).getTime());
+  const minStart = startTimes.length > 0 ? Math.min(...startTimes) : 0;
+  const maxEnd = endTimes.length > 0 ? Math.max(...endTimes) : 0;
+  const totalDuration = maxEnd - minStart || 0;
+
   const peakRam = run.stages.length > 0 ? Math.max(...run.stages.map((s) => s.ram_used_mb)) : 0;
   const peakGpu = run.stages.length > 0 ? Math.max(...run.stages.map((s) => s.gpu_mem_used_mb)) : 0;
 
