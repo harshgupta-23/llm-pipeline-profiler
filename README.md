@@ -95,7 +95,12 @@ from llm_profiler import Tracer
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 # Initialize Tracer (auto_instrument is True by default)
-tracer = Tracer(run_name="llama3-8b-auto", dashboard_url="https://your-ngrok-url.ngrok-free.dev")
+# Pass profile_torch=True to capture detailed PyTorch GPU operator traces (optional)
+tracer = Tracer(
+    run_name="llama3-8b-auto", 
+    dashboard_url="https://your-ngrok-url.ngrok-free.dev",
+    profile_torch=False  # Set to True to enable Op-level GPU Flamegraphs
+)
 
 # Run typical HuggingFace pipeline with NO manual tracer.stage(...) blocks!
 model = AutoModelForCausalLM.from_pretrained("meta-llama/Meta-Llama-3-8B-Instruct")
@@ -107,6 +112,15 @@ text = tokenizer.decode(outputs[0])
 # Export pipeline profiling data to dashboard
 tracer.export()
 ```
+
+---
+
+## Performance Design
+
+To ensure profiling does not alter the execution characteristics of your model or introduce timeline gaps:
+1. **CUDA Synchronization**: In both modes, the tracer automatically invokes `torch.cuda.synchronize()` on stage boundaries. This forces the CPU to wait until the GPU completes its work before capturing timestamps, preventing the "asynchronous execution illusion" where GPU execution is mistakenly attributed to empty timeline gaps.
+2. **In-Memory Collection**: All stage, metric, and throughput data is collected locally in CPU RAM. No network requests or file writes run during stage execution. A single export is made at the very end when `tracer.export()` is called.
+3. **Daemon Trace Serialization**: When PyTorch kernel profiling is enabled (`profile_torch=True`), the trace is stopped instantly on the main thread and trace serialization is delegated to a background daemon thread, keeping the main execution thread completely unblocked.
 
 ### 2. Manual Staging (Fine-grained control)
 For custom training loops, custom models, or non-HuggingFace pipelines, disable auto-instrumentation and manually define stage boundaries using context managers or decorators:

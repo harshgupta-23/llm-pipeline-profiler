@@ -34,8 +34,8 @@ The automatically profiled stages are:
 from llm_profiler import Tracer
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-# Initialize Tracer (auto_instrument is True by default)
-tracer = Tracer(run_name="auto-pipeline-run", model_name="distilgpt2")
+# Initialize Tracer (auto_instrument is True by default, profile_torch is False by default)
+tracer = Tracer(run_name="auto-pipeline-run", model_name="distilgpt2", profile_torch=False)
 
 # Run your normal pipeline with zero changes
 model = AutoModelForCausalLM.from_pretrained("distilgpt2")
