@@ -15,12 +15,13 @@ from .sampler_bridge import SamplerBridge
 from .exporter import Exporter
 
 class Tracer:
-    def __init__(self, run_name: str, model_name: Optional[str] = None, dashboard_url: Optional[str] = None, sample_interval_ms: int = 50, auto_instrument: bool = True):
+    def __init__(self, run_name: str, model_name: Optional[str] = None, dashboard_url: Optional[str] = None, sample_interval_ms: int = 50, auto_instrument: bool = True, profile_torch: bool = False):
         self.run_name = run_name
         self.model_name = model_name
         self.dashboard_url = dashboard_url
         self.sample_interval_ms = sample_interval_ms
         self.auto_instrument = auto_instrument
+        self.profile_torch = profile_torch
         
         self.run_id = str(uuid.uuid4())
         self.created_at = datetime.utcnow()

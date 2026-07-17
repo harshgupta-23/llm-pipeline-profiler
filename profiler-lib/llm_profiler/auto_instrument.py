@@ -78,7 +78,7 @@ def patch_method(cls: Any, name: str, stage_name: str) -> None:
         # 1. This tracer is the active tracer.
         # 2. There are no active stage contexts already (re-entrancy / nesting protection).
         if tracer and not tracer._active_stage_contexts:
-            profile_torch = (stage_name == "generate")
+            profile_torch = getattr(tracer, "profile_torch", False) if (stage_name == "generate") else False
             with tracer.stage(stage_name, profile_torch=profile_torch) as stage_ctx:
                 import time
                 
