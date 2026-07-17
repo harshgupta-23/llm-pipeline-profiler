@@ -43,3 +43,14 @@ install/
 *.db
 *.db-journal
 run.json
+
+# Notebook checkpoints
+.ipynb_checkpoints/
+
+# Agent files
+.agents/
+
+# Virtual Environments
+.venv/
+venv/
+env/

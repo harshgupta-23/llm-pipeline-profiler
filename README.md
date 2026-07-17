@@ -87,21 +87,56 @@ This also triggers `pybind11` to compile the C++ sampler into a Python extension
 
 ## Usage
 
+### 1. Auto-Instrumentation (Default / Zero Code Changes)
+If your pipeline uses HuggingFace `transformers`, auto-instrumentation hooks into the key entry points (model loading, tokenizing, generation, and decoding) automatically.
+
+```python
+from llm_profiler import Tracer
+from transformers import AutoModelForCausalLM, AutoTokenizer
+
+# Initialize Tracer (auto_instrument is True by default)
+tracer = Tracer(run_name="llama3-8b-auto", dashboard_url="https://your-ngrok-url.ngrok-free.dev")
+
+# Run typical HuggingFace pipeline with NO manual tracer.stage(...) blocks!
+model = AutoModelForCausalLM.from_pretrained("meta-llama/Meta-Llama-3-8B-Instruct")
+tokenizer = AutoTokenizer.from_pretrained("meta-llama/Meta-Llama-3-8B-Instruct")
+inputs = tokenizer("Hello, world!", return_tensors="pt")
+outputs = model.generate(**inputs, max_new_tokens=50)
+text = tokenizer.decode(outputs[0])
+
+# Export pipeline profiling data to dashboard
+tracer.export()
+```
+
+### 2. Manual Staging (Fine-grained control)
+For custom training loops, custom models, or non-HuggingFace pipelines, disable auto-instrumentation and manually define stage boundaries using context managers or decorators:
+
 ```python
 from llm_profiler import Tracer
 
-tracer = Tracer(run_name="llama3-8b-inference", dashboard_url="https://your-ngrok-url.ngrok-free.dev")
+# Disable auto-instrumentation
+tracer = Tracer(run_name="custom-pipeline-run", auto_instrument=False, dashboard_url="...")
 
 with tracer.stage("model_load"):
     model = load_model(...)
 
+with tracer.stage("tokenize"):
+    inputs = tokenize(...)
+
 with tracer.stage("generate"):
-    output = model.generate(...)
+    outputs = model.generate(...)
 
 tracer.export()
 ```
 
-See [`examples/kaggle_notebook_example.ipynb`](examples/kaggle_notebook_example.ipynb) for a complete, runnable walkthrough.
+See [`examples/kaggle_notebook_example.ipynb`](examples/kaggle_notebook_example.ipynb) for a complete, runnable notebook comparing both styles side-by-side.
+
+---
+
+## Known Limitations
+
+- **Single-Threaded Assumption**: Auto-instrumentation hooks and context management are designed under the assumption of single-threaded pipeline execution (typical for standard Jupyter/Kaggle notebook execution). Running concurrent overlapping profiling sessions across multiple threads using the same global patched methods is not supported.
+- **Multiple Tracer Prioritization**: If multiple `Tracer` instances are active at once, the most-recently-created tracer will receive the auto-instrumentation stages. When that tracer is stopped or exited, priority falls back to the previously active tracer.
 
 ---
 

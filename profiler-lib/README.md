@@ -16,25 +16,54 @@ A lightweight Python instrumentation library for profiling LLM inference/trainin
 pip install -e ./profiler-lib
 ```
 
-## Quick Start
+## Usage Modes
+
+`llm-profiler` supports two profiling modes: **Auto-Instrumentation** and **Manual Staging**.
+
+### 1. Auto-Instrumentation (Default / Zero-Code Changes)
+
+In this mode, the tracer automatically hooks into standard HuggingFace entry points during initialization. This allows you to profile standard HuggingFace inference pipelines without modifying your code.
+
+The automatically profiled stages are:
+- `AutoModelForCausalLM.from_pretrained` (and base `PreTrainedModel.from_pretrained`) → `"model_load"`
+- `PreTrainedTokenizerBase.__call__` → `"tokenize"`
+- `GenerationMixin.generate` (including dynamic on-the-fly patching for overridden `generate` methods) → `"generate"`
+- `PreTrainedTokenizerBase.decode` and `.batch_decode` → `"postprocess"`
 
 ```python
-import os
+from llm_profiler import Tracer
+from transformers import AutoModelForCausalLM, AutoTokenizer
+
+# Initialize Tracer (auto_instrument is True by default)
+tracer = Tracer(run_name="auto-pipeline-run", model_name="distilgpt2")
+
+# Run your normal pipeline with zero changes
+model = AutoModelForCausalLM.from_pretrained("distilgpt2")
+tokenizer = AutoTokenizer.from_pretrained("distilgpt2")
+inputs = tokenizer("The quick brown fox", return_tensors="pt")
+output = model.generate(**inputs, max_new_tokens=40)
+text = tokenizer.decode(output[0])
+
+# Export results
+tracer.export()
+```
+
+### 2. Manual Staging
+
+For custom pipelines, non-HuggingFace models, or fine-grained control over stage boundaries/names, you can disable auto-instrumentation and use context managers or decorators:
+
+```python
+import time
 from llm_profiler import Tracer
 
-# Optional: Enable Mock GPU for testing locally
-# os.environ["LLM_PROFILER_MOCK_GPU"] = "1"
+# Initialize Tracer with auto_instrument=False
+tracer = Tracer(run_name="manual-pipeline-run", auto_instrument=False)
 
-# Initialize Tracer (offline mode)
-tracer = Tracer(run_name="llama-inference-run", model_name="Llama-3-8B")
-
-# profile stage using context manager
+# Profile using context manager
 with tracer.stage("model_load"):
-    # Load your model here
-    import time
-    time.sleep(1.0)
+    time.sleep(1.0)  # Load model
 
-# profile stage using decorator
+# Profile using decorator
 @tracer.stage("tokenize")
 def tokenize_text(text):
     time.sleep(0.2)
@@ -42,12 +71,19 @@ def tokenize_text(text):
 
 tokenize_text("Hello world")
 
-# Log custom metric to active stage
+# Log custom metrics to the active stage
 with tracer.stage("generate"):
     for i in range(5):
         time.sleep(0.1)
     tracer.log_metric("tokens_generated", 50.0)
 
-# Export results to run.json
 tracer.export()
 ```
+
+---
+
+## Known Limitations
+
+- **Single-Threaded Assumption**: Auto-instrumentation hooks and context management are designed under the assumption of single-threaded pipeline execution (typical for standard Jupyter/Kaggle notebook execution). Running concurrent overlapping profiling sessions across multiple threads using the same global patched methods is not supported.
+- **Multiple Tracer Prioritization**: If multiple `Tracer` instances are active at once, the most-recently-created tracer will receive the auto-instrumentation stages. When that tracer is stopped or exited, priority falls back to the previously active tracer.
+

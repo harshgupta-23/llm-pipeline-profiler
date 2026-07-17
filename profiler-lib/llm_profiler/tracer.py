@@ -15,11 +15,12 @@ from .sampler_bridge import SamplerBridge
 from .exporter import Exporter
 
 class Tracer:
-    def __init__(self, run_name: str, model_name: Optional[str] = None, dashboard_url: Optional[str] = None, sample_interval_ms: int = 50):
+    def __init__(self, run_name: str, model_name: Optional[str] = None, dashboard_url: Optional[str] = None, sample_interval_ms: int = 50, auto_instrument: bool = True):
         self.run_name = run_name
         self.model_name = model_name
         self.dashboard_url = dashboard_url
         self.sample_interval_ms = sample_interval_ms
+        self.auto_instrument = auto_instrument
         
         self.run_id = str(uuid.uuid4())
         self.created_at = datetime.utcnow()
@@ -43,6 +44,26 @@ class Tracer:
         
         # Export initial empty run
         self._export_current_run()
+
+        if self.auto_instrument:
+            from .auto_instrument import register_tracer
+            register_tracer(self)
+
+    def stop_auto_instrument(self):
+        """
+        Stop auto-instrumentation for this Tracer. If no other active
+        auto-instrumented Tracers exist, original methods will be restored.
+        """
+        if self.auto_instrument:
+            from .auto_instrument import unregister_tracer
+            unregister_tracer(self)
+            self.auto_instrument = False
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.stop_auto_instrument()
 
     def _export_current_run(self):
         run_data = RunSchema(
