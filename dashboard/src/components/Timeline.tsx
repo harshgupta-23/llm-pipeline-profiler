@@ -84,10 +84,16 @@ export default function Timeline({ stages }: TimelineProps) {
       </div>
 
       {/* Axis legend */}
-      <div className="mt-4 pt-4 border-t border-slate-800/60 flex justify-between text-[11px] text-slate-500">
-        <span>0 ms</span>
-        <span>{(totalDuration / 2).toFixed(0)} ms</span>
-        <span>{totalDuration.toFixed(0)} ms (Total)</span>
+      <div className="mt-4 pt-4 border-t border-slate-800/60 timeline-grid text-[11px] text-slate-500">
+        {/* Placeholder column to align with stage labels */}
+        <div />
+        
+        {/* Legend labels aligned exactly with the bar tracks */}
+        <div className="flex justify-between w-full">
+          <span>0 ms</span>
+          <span>{(totalDuration / 2).toFixed(0)} ms</span>
+          <span>{totalDuration.toFixed(0)} ms (Total)</span>
+        </div>
       </div>
     </div>
   );
