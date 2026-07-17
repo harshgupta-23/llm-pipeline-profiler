@@ -94,17 +94,7 @@ export default function Flamegraph({ traceJsonStr }: FlamegraphProps) {
       {threads.map((thread) => {
         const maxDepth = Math.max(...thread.nodes.map((n) => n.depth), 0);
         const laneHeight = (maxDepth + 1) * 26 + 20; // 26px per row + padding
-        
-        // Calculate bounds dynamically from visible nodes to eliminate empty trailing space
-        const initialTimeSpan = thread.maxTs - thread.minTs || 1;
-        const renderedNodes = thread.nodes.filter((node) => {
-          const width = (node.duration / initialTimeSpan) * 100;
-          return width >= 0.02; // Filter out elements less than 0.02% wide
-        });
-
-        const threadMinTs = renderedNodes.length > 0 ? Math.min(...renderedNodes.map((n) => n.start)) : thread.minTs;
-        const threadMaxTs = renderedNodes.length > 0 ? Math.max(...renderedNodes.map((n) => n.start + n.duration)) : thread.maxTs;
-        const timeSpan = threadMaxTs - threadMinTs || 1;
+        const timeSpan = thread.maxTs - thread.minTs || 1;
 
         return (
           <div key={`${thread.pid}-${thread.tid}`} className="p-5 glass-card flex flex-col">
@@ -119,8 +109,13 @@ export default function Flamegraph({ traceJsonStr }: FlamegraphProps) {
                 className="relative min-w-[800px]" 
                 style={{ height: `${laneHeight}px` }}
               >
-                {renderedNodes.map((node, index) => {
-                    const left = ((node.start - threadMinTs) / timeSpan) * 100;
+                {thread.nodes
+                  .filter((node) => {
+                    const width = (node.duration / timeSpan) * 100;
+                    return width >= 0.02; // Filter out elements less than 0.02% wide
+                  })
+                  .map((node, index) => {
+                    const left = ((node.start - thread.minTs) / timeSpan) * 100;
                     const width = (node.duration / timeSpan) * 100;
                     const top = node.depth * 26 + 10;
                     const color = getNodeColor(node);
@@ -157,6 +152,14 @@ export default function Flamegraph({ traceJsonStr }: FlamegraphProps) {
           </div>
         );
       })}
+
+      {/* Info note explaining empty trailing spaces */}
+      <div className="p-4 bg-slate-950/20 border border-slate-900 rounded-xl text-xs flex items-center gap-3 text-slate-400">
+        <AlertCircle className="h-4.5 w-4.5 text-indigo-400 shrink-0" />
+        <span>
+          <strong className="text-slate-300">Note:</strong> Any trailing empty space at the end of a track represents extremely tiny microsecond operations (like final GPU synchronization tasks or memory cleanups) that have been dynamically hidden to optimize browser rendering performance.
+        </span>
+      </div>
     </div>
   );
 }
