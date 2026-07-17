@@ -9,10 +9,12 @@ interface FlamegraphProps {
 }
 
 export default function Flamegraph({ traceJsonStr }: FlamegraphProps) {
+  const [simplified, setSimplified] = React.useState(true);
+
   const parseResult = useMemo(() => {
     if (!traceJsonStr) return { threads: [], truncated: false, originalCount: 0, limit: 15000 };
-    return parseChromeTrace(traceJsonStr);
-  }, [traceJsonStr]);
+    return parseChromeTrace(traceJsonStr, 15000, simplified);
+  }, [traceJsonStr, simplified]);
 
   const { threads, truncated, originalCount, limit } = parseResult;
 
@@ -59,7 +61,27 @@ export default function Flamegraph({ traceJsonStr }: FlamegraphProps) {
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
+      {/* Trace Visualization Switch */}
+      <div className="flex justify-between items-center bg-slate-900/40 p-4 border border-slate-900 rounded-xl">
+        <div className="text-xs text-slate-400">
+          <span className="font-semibold text-slate-200">Trace Visualization Mode</span>
+          <p className="mt-0.5">Merge contiguous small operations of the same category to simplify the view without losing duration information.</p>
+        </div>
+        <label className="relative inline-flex items-center cursor-pointer select-none">
+          <input 
+            type="checkbox" 
+            checked={simplified} 
+            onChange={(e) => setSimplified(e.target.checked)}
+            className="sr-only peer"
+          />
+          <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-slate-400 after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500 peer-checked:after:bg-slate-950"></div>
+          <span className="ms-3 text-xs font-semibold text-slate-300">
+            {simplified ? "Merged (Simplified)" : "Raw (Detailed)"}
+          </span>
+        </label>
+      </div>
+
       {truncated && (
         <div className="p-4 bg-amber-500/10 border border-amber-500/30 text-amber-300 rounded-xl text-xs flex items-center gap-2">
           <AlertCircle className="h-4 w-4 text-amber-400 shrink-0 animate-pulse" />
@@ -90,7 +112,7 @@ export default function Flamegraph({ traceJsonStr }: FlamegraphProps) {
                 {thread.nodes
                   .filter((node) => {
                     const width = (node.duration / timeSpan) * 100;
-                    return width >= 0.02; // Filter out elements less than 0.02% wide (which is < 0.2px on 1000px screen)
+                    return width >= 0.02; // Filter out elements less than 0.02% wide
                   })
                   .map((node, index) => {
                     const left = ((node.start - thread.minTs) / timeSpan) * 100;
