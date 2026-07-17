@@ -69,8 +69,8 @@ class TestAutoInstrument(unittest.TestCase):
             sys.modules["transformers"] = real_transformers
 
     def test_graceful_missing_transformers(self):
-        # Remove transformers from sys.modules
-        sys.modules.pop("transformers", None)
+        # Block transformers from being imported
+        sys.modules["transformers"] = None
         
         from llm_profiler.auto_instrument import patch_all, unpatch_all, _patched_methods
         # Should not raise exception
@@ -145,13 +145,20 @@ class TestAutoInstrument(unittest.TestCase):
         # The model's subclass generate should be patched on-the-fly!
         self.assertTrue(hasattr(model.generate, "__wrapped__"))
         
-        # Running generate should record the generate stage
-        model.generate()
+        # Running generate with inputs so that tps can be calculated
+        # args[1] (input_ids) = [1, 2], return value = [4, 5, 6] (length 3, so new_tokens = 1)
+        model.generate([1, 2])
         
         # Check that two stages were recorded: "model_load" and "generate"
         self.assertEqual(len(tracer.stages), 2)
         self.assertEqual(tracer.stages[0].name, "model_load")
         self.assertEqual(tracer.stages[1].name, "generate")
+        
+        # Verify that a "tps" metric was logged during the generate stage
+        generate_stage = tracer.stages[1]
+        tps_metrics = [m for m in generate_stage.metrics if m.key == "tps"]
+        self.assertTrue(len(tps_metrics) > 0, "No 'tps' metric was logged for the generate stage!")
+        self.assertTrue(tps_metrics[0].value > 0.0, "TPS metric value should be greater than 0")
         
         tracer.stop_auto_instrument()
 

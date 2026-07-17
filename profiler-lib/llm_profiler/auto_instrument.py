@@ -78,8 +78,38 @@ def patch_method(cls: Any, name: str, stage_name: str) -> None:
         # 1. This tracer is the active tracer.
         # 2. There are no active stage contexts already (re-entrancy / nesting protection).
         if tracer and not tracer._active_stage_contexts:
-            with tracer.stage(stage_name):
+            profile_torch = (stage_name == "generate")
+            with tracer.stage(stage_name, profile_torch=profile_torch) as stage_ctx:
+                import time
                 result = original_func(*args, **kwargs)
+                
+                # Automatically calculate and log throughput for the generation stage
+                if stage_name == "generate":
+                    try:
+                        elapsed = time.perf_counter() - stage_ctx.start_perf
+                        if elapsed > 0:
+                            input_ids = None
+                            if len(args) > 1:
+                                input_ids = args[1]
+                            if input_ids is None:
+                                input_ids = kwargs.get("input_ids", None)
+                            if input_ids is None:
+                                input_ids = kwargs.get("inputs", None)
+                                
+                            output_ids = result
+                            if hasattr(result, "sequences"):
+                                output_ids = result.sequences
+                                
+                            if input_ids is not None and output_ids is not None:
+                                num_input = input_ids.shape[-1] if hasattr(input_ids, "shape") else len(input_ids)
+                                num_output = output_ids.shape[-1] if hasattr(output_ids, "shape") else len(output_ids)
+                                new_tokens = num_output - num_input
+                                if new_tokens > 0:
+                                    tps = new_tokens / elapsed
+                                    stage_ctx.log_metric("tps", tps)
+                    except Exception:
+                        pass
+                
                 _patch_model_instance_class_if_needed(result)
                 return result
         else:
