@@ -123,6 +123,15 @@ class StageContext(ContextDecorator):
     def __enter__(self):
         self.stage_id = str(uuid.uuid4())
         self.metrics = []
+        
+        # Synchronize CUDA if available to get accurate GPU start time
+        try:
+            import torch
+            if torch.cuda.is_available():
+                torch.cuda.synchronize()
+        except ImportError:
+            pass
+            
         self.start_time = datetime.utcnow()
         self.start_perf = time.perf_counter()
         
@@ -211,6 +220,14 @@ class StageContext(ContextDecorator):
         # Clean active context reference
         if self in self.tracer._active_stage_contexts:
             self.tracer._active_stage_contexts.remove(self)
+            
+        # Synchronize CUDA if available to get accurate GPU end time
+        try:
+            import torch
+            if torch.cuda.is_available():
+                torch.cuda.synchronize()
+        except ImportError:
+            pass
             
         end_time = datetime.utcnow()
         end_perf = time.perf_counter()
