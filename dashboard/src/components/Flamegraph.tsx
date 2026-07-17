@@ -82,6 +82,14 @@ export default function Flamegraph({ traceJsonStr }: FlamegraphProps) {
         </label>
       </div>
 
+      {/* Info note explaining empty trailing spaces */}
+      <div className="p-3 bg-slate-950/20 border border-slate-900 rounded-xl text-xs flex items-start gap-2.5 text-slate-400">
+        <AlertCircle className="h-4 w-4 text-indigo-400 shrink-0 mt-0.5" />
+        <span>
+          <strong className="text-slate-300">Note:</strong> Trailing empty space at the end of a track represents tiny microsecond operations (like final GPU synchronization tasks or memory cleanups) that have been hidden or dropped to optimize browser rendering performance.
+        </span>
+      </div>
+
       {truncated && (
         <div className="p-4 bg-amber-500/10 border border-amber-500/30 text-amber-300 rounded-xl text-xs flex items-center gap-2">
           <AlertCircle className="h-4 w-4 text-amber-400 shrink-0 animate-pulse" />
@@ -152,14 +160,6 @@ export default function Flamegraph({ traceJsonStr }: FlamegraphProps) {
           </div>
         );
       })}
-
-      {/* Info note explaining empty trailing spaces */}
-      <div className="p-4 bg-slate-950/20 border border-slate-900 rounded-xl text-xs flex items-center gap-3 text-slate-400">
-        <AlertCircle className="h-4.5 w-4.5 text-indigo-400 shrink-0" />
-        <span>
-          <strong className="text-slate-300">Note:</strong> Any trailing empty space at the end of a track represents extremely tiny microsecond operations (like final GPU synchronization tasks or memory cleanups) that have been dynamically hidden to optimize browser rendering performance.
-        </span>
-      </div>
     </div>
   );
 }
