@@ -22,7 +22,7 @@ export interface ParseTraceResult {
   limit: number;
 }
 
-function mergeContiguousNodes(nodes: FlamegraphNode[], maxGapUs = 1000): FlamegraphNode[] {
+function mergeContiguousNodes(nodes: FlamegraphNode[], maxGapUs = 10): FlamegraphNode[] {
   if (nodes.length === 0) return [];
   
   // Sort nodes by depth, then by start time
@@ -33,9 +33,8 @@ function mergeContiguousNodes(nodes: FlamegraphNode[], maxGapUs = 1000): Flamegr
   
   const merged: FlamegraphNode[] = [];
   
-  let current: FlamegraphNode & { names?: Set<string>; count?: number } = {
+  let current: FlamegraphNode & { count?: number } = {
     ...sortedNodes[0],
-    names: new Set([sortedNodes[0].name]),
     count: 1
   };
   
@@ -43,28 +42,25 @@ function mergeContiguousNodes(nodes: FlamegraphNode[], maxGapUs = 1000): Flamegr
     const node = sortedNodes[i];
     const currentEnd = current.start + current.duration;
     
-    // Check if it belongs to the same lane (depth), same category, and within gap threshold
+    // Merge only if:
+    // 1. Same depth
+    // 2. Same category
+    // 3. Exact same name (so we do not combine different operations)
+    // 4. Gap is extremely small (<= 10us) to preserve all empty/idle space
     if (
       node.depth === current.depth &&
       node.cat === current.cat &&
+      node.name === current.name &&
       (node.start - currentEnd) <= maxGapUs
     ) {
       // Merge node
       current.duration = (node.start + node.duration) - current.start;
-      current.names?.add(node.name);
       if (current.count !== undefined) {
         current.count += 1;
       }
     } else {
       // Finalize current merged node name
-      if (current.names && current.names.size > 1) {
-        const uniqueNames = Array.from(current.names);
-        if (uniqueNames.length <= 2) {
-          current.name = `${uniqueNames.join(" + ")} (x${current.count})`;
-        } else {
-          current.name = `${uniqueNames[0]} & ${uniqueNames.length - 1} other ops (x${current.count})`;
-        }
-      } else if (current.count && current.count > 1) {
+      if (current.count && current.count > 1) {
         current.name = `${current.name} (x${current.count})`;
       }
       
@@ -78,21 +74,13 @@ function mergeContiguousNodes(nodes: FlamegraphNode[], maxGapUs = 1000): Flamegr
       
       current = {
         ...node,
-        names: new Set([node.name]),
         count: 1
       };
     }
   }
   
   // Finalize last node
-  if (current.names && current.names.size > 1) {
-    const uniqueNames = Array.from(current.names);
-    if (uniqueNames.length <= 2) {
-      current.name = `${uniqueNames.join(" + ")} (x${current.count})`;
-    } else {
-      current.name = `${uniqueNames[0]} & ${uniqueNames.length - 1} other ops (x${current.count})`;
-    }
-  } else if (current.count && current.count > 1) {
+  if (current.count && current.count > 1) {
     current.name = `${current.name} (x${current.count})`;
   }
   merged.push({
