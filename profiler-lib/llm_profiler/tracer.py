@@ -42,6 +42,7 @@ class Tracer:
         self.stages: List[StageSchema] = []
         self.exporter = Exporter(dashboard_url=self.dashboard_url)
         self._active_stage_contexts = []
+        self._background_threads = []
         
         # Export initial empty run
         self._export_current_run()
@@ -81,6 +82,13 @@ class Tracer:
         """
         Export the current run statistics to local file and HTTP endpoint.
         """
+        self.stop_auto_instrument()
+        # Wait for background serialization threads to complete
+        if hasattr(self, "_background_threads"):
+            for t in self._background_threads:
+                if t.is_alive():
+                    t.join()
+            self._background_threads.clear()
         self._export_current_run()
 
     def stage(self, name: str, profile_torch: bool = False):
@@ -287,11 +295,10 @@ class StageContext(ContextDecorator):
         )
         
         self.tracer.stages.append(stage)
-        self.tracer._export_current_run()
 
         # Start the background serialization thread if a profiler was active
         if profiler_to_serialize and trace_dir:
-            def serialize_trace(stage_object, tracer_object):
+            def serialize_trace(stage_object):
                 import tempfile
                 try:
                     fd, path = tempfile.mkstemp(suffix=".json", dir=trace_dir)
@@ -304,15 +311,16 @@ class StageContext(ContextDecorator):
                             os.remove(path)
                         except Exception:
                             pass
-                        # Update the stage with the serialized trace and re-export
+                        # Update the stage with the serialized trace in-memory
                         stage_object.trace_ref = trace_content
-                        tracer_object._export_current_run()
                 except Exception as e:
                     print(f"[llm-profiler] Background trace export failed: {e}")
 
-            t = threading.Thread(target=serialize_trace, args=(stage, self.tracer))
+            t = threading.Thread(target=serialize_trace, args=(stage,))
             t.daemon = True
             t.start()
+            if hasattr(self.tracer, "_background_threads"):
+                self.tracer._background_threads.append(t)
             
         # Propagate exception if one occurred
         return False
