@@ -76,7 +76,7 @@ export default function Flamegraph({ traceJsonStr }: FlamegraphProps) {
             className="sr-only peer"
           />
           <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-slate-400 after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500 peer-checked:after:bg-slate-950"></div>
-          <span className="ms-3 text-xs font-semibold text-slate-300">
+          <span className="ms-3 text-xs font-semibold text-slate-300 w-32 inline-block">
             {simplified ? "Merged (Simplified)" : "Raw (Detailed)"}
           </span>
         </label>
