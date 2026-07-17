@@ -81,9 +81,53 @@ def patch_method(cls: Any, name: str, stage_name: str) -> None:
             profile_torch = (stage_name == "generate")
             with tracer.stage(stage_name, profile_torch=profile_torch) as stage_ctx:
                 import time
+                
+                # Dynamic Step-by-Step Throughput (TPS) Tracking via LogitsProcessor
+                if stage_name == "generate":
+                    try:
+                        from transformers import LogitsProcessor, LogitsProcessorList
+                        
+                        input_ids = None
+                        if len(args) > 1:
+                            input_ids = args[1]
+                        if input_ids is None:
+                            input_ids = kwargs.get("input_ids", None)
+                        if input_ids is None:
+                            input_ids = kwargs.get("inputs", None)
+                            
+                        if input_ids is not None:
+                            start_len = input_ids.shape[-1] if hasattr(input_ids, "shape") else len(input_ids)
+                            
+                            class ThroughputLogitsProcessor(LogitsProcessor):
+                                def __init__(self, stage_ctx_ref, start_length):
+                                    self.stage_ctx = stage_ctx_ref
+                                    self.start_length = start_length
+                                    self.start_time = time.perf_counter()
+                                    
+                                def __call__(self, step_input_ids, scores):
+                                    try:
+                                        current_len = step_input_ids.shape[-1]
+                                        generated = current_len - self.start_length
+                                        elapsed = time.perf_counter() - self.start_time
+                                        if elapsed > 0 and generated > 0:
+                                            self.stage_ctx.log_metric("tps", float(generated / elapsed))
+                                    except Exception:
+                                        pass
+                                    return scores
+                                    
+                            processor = ThroughputLogitsProcessor(stage_ctx, start_len)
+                            
+                            existing = kwargs.get("logits_processor", None)
+                            if existing is None:
+                                kwargs["logits_processor"] = LogitsProcessorList([processor])
+                            elif isinstance(existing, LogitsProcessorList) or isinstance(existing, list):
+                                existing.append(processor)
+                    except Exception:
+                        pass
+                
                 result = original_func(*args, **kwargs)
                 
-                # Automatically calculate and log throughput for the generation stage
+                # Fallback / Overall Throughput (TPS) logging at the end of the stage
                 if stage_name == "generate":
                     try:
                         elapsed = time.perf_counter() - stage_ctx.start_perf
